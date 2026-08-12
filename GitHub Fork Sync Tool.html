@@ -1,4 +1,4 @@
-<!-- ID: 20260325-1935.1 -->
+<!-- ID: 20260812-1654.1 -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -8,27 +8,30 @@
 
 <style>
 body {
-    font-family: Arial;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: #0d1117;
     color: #c9d1d9;
     margin: 20px auto;
-    max-width: 80%;
+    max-width: 85%;
     padding: 0 15px;
 }
-input[type="password"], button {
+input[type="password"], select, button {
     box-sizing: border-box;
     padding: 10px;
     margin: 5px 0;
-    width: 100%;
     border-radius: 6px;
-    border: none;
+    border: 1px solid #30363d;
 }
-input[type="password"] { background: #161b22; color: #c9d1d9; }
-input[type="checkbox"] { width: auto; margin-right: 8px; }
-button { background: #238636; color: white; cursor: pointer; }
+input[type="password"] { background: #161b22; color: #c9d1d9; width: 100%; }
+select { background: #161b22; color: #c9d1d9; padding: 8px 12px; cursor: pointer; }
+input[type="checkbox"] { width: auto; margin-right: 6px; cursor: pointer; }
+label { cursor: pointer; user-select: none; }
+button { background: #238636; color: white; cursor: pointer; border: none; font-weight: 600; padding: 10px 16px; border-radius: 6px; }
 button:hover { background: #2ea043; }
-.actions { display: flex; gap: 10px; margin: 10px 0; }
-.actions button { margin: 0; flex: 1; }
+button.btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+button.btn-secondary:hover { background: #30363d; }
+button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; border: 1px solid #30363d; }
+
 .top-section {
     display: flex;
     gap: 20px;
@@ -42,10 +45,9 @@ button:hover { background: #2ea043; }
     gap: 5px;
 }
 .input-col label { font-weight: bold; }
-.input-col input { margin: 0; }
 .status-col {
     flex: 1;
-    padding: 10px;
+    padding: 10px 15px;
     background: #161b22;
     border: 1px solid #30363d;
     border-radius: 6px;
@@ -64,18 +66,72 @@ button:hover { background: #2ea043; }
     line-height: 1.4;
 }
 
+.controls-bar {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px 15px;
+    margin: 15px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+    justify-content: space-between;
+}
+.controls-group {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+.control-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.actions { display: flex; gap: 10px; margin: 15px 0; }
+.actions button { margin: 0; flex: 1; }
+
 .repo {
     border: 1px solid #30363d;
-    padding: 10px;
+    background: #161b22;
+    padding: 12px 15px;
     margin-top: 10px;
     border-radius: 6px;
 }
+.repo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+.repo-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.repo-name {
+    font-size: 15px;
+    font-weight: 600;
+}
 
-.log { font-size: 12px; margin-top: 5px; }
+.log { font-size: 12px; margin-top: 5px; font-weight: 500; }
 .ok { color: #3fb950; }
 .err { color: #f85149; }
 .warn { color: #d29922; }
-.meta { font-size: 12px; color: #8b949e; }
+.meta { font-size: 12px; color: #8b949e; line-height: 1.4; }
+.badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-block;
+}
+.badge-warn { background: #d2992222; color: #d29922; border: 1px solid #d2992266; }
+.badge-ok { background: #23863622; color: #3fb950; border: 1px solid #23863666; }
+.badge-err { background: #f8514922; color: #f85149; border: 1px solid #f8514966; }
 </style>
 </head>
 
@@ -94,20 +150,59 @@ button:hover { background: #2ea043; }
     </div>
 </div>
 
-<label>
-    <input type="checkbox" id="keepWorkflows">
-    Mantener workflows activados (GitHub Actions)
-</label>
+<div class="controls-bar">
+    <div class="controls-group">
+        <div class="control-item">
+            <input type="checkbox" id="keepWorkflows">
+            <label for="keepWorkflows">Mantener workflows activados</label>
+        </div>
+        <div class="control-item">
+            <input type="checkbox" id="forceSync">
+            <label for="forceSync" style="color: #f0883e; font-weight: 600;">⚡ Forzar sincronización (Sobrescribir conflictos)</label>
+        </div>
+    </div>
+
+    <div class="controls-group">
+        <div class="control-item">
+            <label for="filterSelect">Mostrar:</label>
+            <select id="filterSelect" onchange="renderForks()">
+                <option value="all">Todos los repositorios</option>
+                <option value="pending" selected>Sólo pendientes de actualizar</option>
+            </select>
+        </div>
+        <div class="control-item">
+            <label for="sortSelect">Ordenar por:</label>
+            <select id="sortSelect" onchange="renderForks()">
+                <option value="status" selected>Estado (Pendientes primero)</option>
+                <option value="name">Nombre de repositorio</option>
+                <option value="fullname">Nombre completo (Owner/Repo)</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="controls-bar" style="margin-top: -5px; padding: 8px 15px;">
+    <div class="controls-group">
+        <div class="control-item">
+            <input type="checkbox" id="selectAll" checked onchange="toggleSelectAll(this.checked)">
+            <label for="selectAll" id="selectAllLabel" style="font-weight: 600;">Seleccionar / Deseleccionar todos los visibles</label>
+        </div>
+    </div>
+    <div id="countSummary" style="font-size: 13px; color: #8b949e;">
+        0 repositorios cargados
+    </div>
+</div>
 
 <div class="actions">
-    <button onclick="loadForks()">Cargar Forks</button>
-    <button onclick="syncAll()">Sincronizar Todos</button>
+    <button class="btn-secondary" onclick="loadForks()">Cargar / Recargar Forks</button>
+    <button class="btn-secondary" onclick="disableWorkflowsSelected()">Desactivar Workflows (Seleccionados)</button>
+    <button onclick="syncAll()">Sincronizar Seleccionados</button>
 </div>
 
 <div id="repos"></div>
 
 <script>
-/* ID: 20260325-1935.2 */
+/* ID: 20260812-1654.2 */
 
 let forks = [];
 
@@ -133,6 +228,10 @@ function tokenValue() {
 
 function keepWorkflows() {
     return document.getElementById('keepWorkflows').checked;
+}
+
+function forceSyncValue() {
+    return document.getElementById('forceSync').checked;
 }
 
 // Obtener upstream real
@@ -183,7 +282,7 @@ async function loadForks() {
 
             forks.push(...data.filter(r => r.fork));
             page++;
-            await sleep(500); // Prevención de abuse limits rate al paginar
+            await sleep(500);
         } catch (e) {
             reposDiv.innerHTML = `<span class="err">Error de red Crítico al listar repositorios.</span>`;
             return;
@@ -194,7 +293,6 @@ async function loadForks() {
     const globalStart = new Date();
 
     for (let i = 0; i < forks.length; i++) {
-        const repoStart = new Date();
         progressDiv.innerHTML = `
             Cantidad total de repositorios: ${forks.length}<br>
             Hora de inicio: ${timeStr(globalStart)}<br>
@@ -203,12 +301,15 @@ async function loadForks() {
         `;
         
         forks[i] = await enrichWithParent(forks[i]);
-        await sleep(350); // Ratelimit protection backoff
+        await sleep(350);
         
         if (forks[i].parent) {
             forks[i].cmp = await isBehind(forks[i], forks[i].default_branch);
-            await sleep(350); // Ratelimit protection backoff
+            await sleep(350);
         }
+
+        // Por defecto, marcar como seleccionado si requiere actualización o si se desea procesar
+        forks[i].selected = !!(forks[i].parent && forks[i].cmp && forks[i].cmp.behind);
     }
 
     const globalEnd = new Date();
@@ -218,7 +319,7 @@ async function loadForks() {
     statusTitle.innerText = "Análisis finalizado";
     statusTitle.style.color = "#3fb950";
     progressDiv.innerHTML = `
-        Cantidad de repositorios requiere actualización: <strong>${countUpdate}</strong><br>
+        Cantidad de repositorios requiere actualización: <strong>${countUpdate}</strong> de ${forks.length}<br>
         Hora de inicio: ${timeStr(globalStart)}<br>
         Hora de fin: ${timeStr(globalEnd)}<br>
         Duración total: ${durationStr}
@@ -227,12 +328,73 @@ async function loadForks() {
     renderForks();
 }
 
+function toggleSelectAll(checked) {
+    const filter = document.getElementById('filterSelect').value;
+    const visibleForks = getFilteredForks(filter);
+    visibleForks.forEach(r => { r.selected = checked; });
+    renderForks();
+}
+
+function toggleRepoSelect(repoName, checked) {
+    const repo = forks.find(r => r.name === repoName);
+    if (repo) repo.selected = checked;
+    updateSummary();
+}
+
+function getFilteredForks(filter) {
+    if (filter === "pending") {
+        return forks.filter(r => r.parent && r.cmp && r.cmp.behind);
+    }
+    return [...forks];
+}
+
+function getSortedForks(list, sortKey) {
+    const sorted = [...list];
+    if (sortKey === "status") {
+        const getScore = r => {
+            if (!r.parent) return 4;
+            if (r.cmp && r.cmp.error) return 3;
+            if (r.cmp && r.cmp.behind) return 1; // Pendiente primero
+            return 2; // Actualizado
+        };
+        sorted.sort((a, b) => getScore(a) - getScore(b) || a.name.localeCompare(b.name));
+    } else if (sortKey === "name") {
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortKey === "fullname") {
+        sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    }
+    return sorted;
+}
+
+function updateSummary() {
+    const filter = document.getElementById('filterSelect').value;
+    const visible = getFilteredForks(filter);
+    const selectedCount = visible.filter(r => r.selected).length;
+    const countSummary = document.getElementById('countSummary');
+    if (countSummary) {
+        countSummary.innerHTML = `Mostrando: <strong>${visible.length}</strong> / Total: <strong>${forks.length}</strong> (Seleccionados: <strong>${selectedCount}</strong>)`;
+    }
+}
+
 // Render UI
 function renderForks() {
     const reposDiv = document.getElementById('repos');
     reposDiv.innerHTML = "";
 
-    forks.forEach(repo => {
+    const filter = document.getElementById('filterSelect').value;
+    const sortKey = document.getElementById('sortSelect').value;
+
+    const visibleForks = getFilteredForks(filter);
+    const sortedForks = getSortedForks(visibleForks, sortKey);
+
+    updateSummary();
+
+    if (sortedForks.length === 0) {
+        reposDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #8b949e;">No hay repositorios que coincidan con el filtro.</div>`;
+        return;
+    }
+
+    sortedForks.forEach(repo => {
         const div = document.createElement('div');
         div.className = 'repo';
 
@@ -241,30 +403,39 @@ function renderForks() {
         let syncBtnText = `Sync (${repo.default_branch})`;
 
         if (!repo.parent) {
-            syncStatusHTML = `<span class="warn">Sin upstream configurado</span>`;
+            syncStatusHTML = `<span class="badge badge-warn">Sin upstream</span>`;
             btnDisabled = "disabled";
         } else if (repo.cmp && repo.cmp.error) {
-            syncStatusHTML = `<span class="err">Error al conectar con API</span>`;
+            syncStatusHTML = `<span class="badge badge-err">Error API</span>`;
         } else if (repo.cmp && !repo.cmp.behind) {
-            syncStatusHTML = `<span class="ok">✅ Actualizado</span>`;
+            syncStatusHTML = `<span class="badge badge-ok">✅ Actualizado</span>`;
             syncBtnText = "Actualizado";
             btnDisabled = "disabled";
         } else if (repo.cmp && repo.cmp.behind) {
-            syncStatusHTML = `<span class="warn">⚠️ Atrás por ${repo.cmp.raw.behind_by || '?'} commits</span>`;
+            syncStatusHTML = `<span class="badge badge-warn">⚠️ Atrás por ${repo.cmp.raw.behind_by || '?'} commits</span>`;
         }
 
+        const isChecked = repo.selected !== false ? "checked" : "";
+
         div.innerHTML = `
-            <strong>${repo.full_name}</strong>
-            <div class="meta">
-                Branch: ${repo.default_branch}<br>
-                Upstream: ${repo.parent ? repo.parent.full_name : "❌ none"}<br>
-                Estado: ${syncStatusHTML}
+            <div class="repo-header">
+                <div class="repo-title-group">
+                    <input type="checkbox" id="chk-${repo.name}" ${isChecked} onchange="toggleRepoSelect('${repo.name}', this.checked)">
+                    <span class="repo-name">${repo.full_name}</span>
+                </div>
+                <div>${syncStatusHTML}</div>
             </div>
-            <button id="btn-${repo.name}" ${btnDisabled}
-                onclick="processRepo('${repo.owner.login}', '${repo.name}', '${repo.default_branch}')">
-                ${syncBtnText}
-            </button>
-            <div class="log" id="log-${repo.name}"></div>
+            <div class="meta">
+                Branch: <strong>${repo.default_branch}</strong> | 
+                Upstream: <strong>${repo.parent ? repo.parent.full_name : "❌ none"}</strong>
+            </div>
+            <div class="repo-body" style="margin-top: 8px;">
+                <div class="log" id="log-${repo.name}"></div>
+                <button id="btn-${repo.name}" ${btnDisabled} style="min-width: 140px;"
+                    onclick="processRepo('${repo.owner.login}', '${repo.name}', '${repo.default_branch}')">
+                    ${syncBtnText}
+                </button>
+            </div>
         `;
 
         reposDiv.appendChild(div);
@@ -290,13 +461,87 @@ async function isBehind(repo, branch) {
         const data = await res.json();
 
         return {
-            behind: data.behind_by > 0, // Chequeo robusto de commits faltantes
+            behind: data.behind_by > 0,
             raw: data
         };
     } catch (e) {
-        // Fallo de red local, o CORS block x API abuse trigger
         console.error("Fallo de red/CORS en isBehind:", e);
         return { error: true, exception: true };
+    }
+}
+
+// Sincronización Forzada (Hard Reset ref via PATCH)
+async function forceSyncRepo(owner, repoName, branch) {
+    const repo = forks.find(r => r.name === repoName);
+    const log = document.getElementById(`log-${repoName}`);
+    
+    log.className = "log warn";
+    log.innerText = "Obteniendo commit SHA de upstream...";
+    
+    const upstreamOwner = repo.parent.owner.login;
+    const upstreamRepo = repo.parent.name;
+    const upstreamBranch = repo.parent.default_branch;
+    
+    let upstreamSha = null;
+    
+    try {
+        const refRes = await fetch(
+            `https://api.github.com/repos/${upstreamOwner}/${upstreamRepo}/git/ref/heads/${upstreamBranch}`,
+            { headers: { Authorization: `Bearer ${tokenValue()}`, Accept: "application/vnd.github+json" } }
+        );
+        if (refRes.ok) {
+            const refData = await refRes.json();
+            upstreamSha = refData.object ? refData.object.sha : refData.sha;
+        } else {
+            const commitRes = await fetch(
+                `https://api.github.com/repos/${upstreamOwner}/${upstreamRepo}/commits/${upstreamBranch}`,
+                { headers: { Authorization: `Bearer ${tokenValue()}`, Accept: "application/vnd.github+json" } }
+            );
+            if (commitRes.ok) {
+                const commitData = await commitRes.json();
+                upstreamSha = commitData.sha;
+            }
+        }
+    } catch (e) {
+        log.className = "log err";
+        log.innerText = "Error de red al obtener SHA de upstream.";
+        return false;
+    }
+    
+    if (!upstreamSha) {
+        log.className = "log err";
+        log.innerText = "No se pudo obtener el commit SHA de upstream.";
+        return false;
+    }
+    
+    log.innerText = "Forzando actualización de la rama (Sobrescribiendo)...";
+    
+    try {
+        const patchRes = await fetch(
+            `https://api.github.com/repos/${owner}/${repoName}/git/refs/heads/${branch}`,
+            {
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${tokenValue()}`,
+                    Accept: "application/vnd.github+json",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ sha: upstreamSha, force: true })
+            }
+        );
+        
+        if (patchRes.ok) {
+            return true;
+        } else {
+            const errObj = await patchRes.json().catch(() => ({}));
+            log.className = "log err";
+            log.innerText = `Error al forzar sync: ${errObj.message || patchRes.status}`;
+            return false;
+        }
+    } catch (e) {
+        log.className = "log err";
+        log.innerText = "Error de red al forzar sincronización.";
+        return false;
     }
 }
 
@@ -325,8 +570,10 @@ async function processRepo(owner, repoName, branch) {
 
     let workflowsDisabled = false;
     let wfCountBefore = 0;
+
+    // Si 'Mantener workflows activados' está DESACTIVADO (desmarcado), forzar desactivación previa
     if (!keepWorkflows()) {
-        log.innerText = "Verificando/Deshabilitando workflows...";
+        log.innerText = "Desactivando workflows y Actions forzadamente...";
         const dr = await disableWorkflows(owner, repoName);
         if (dr && dr.success === false) {
              log.className = "log err";
@@ -338,10 +585,13 @@ async function processRepo(owner, repoName, branch) {
         }
     }
 
-    if (!cmp.behind) {
+    if (!cmp.behind && !forceSyncValue()) {
         log.className = "log ok";
-        log.innerText = workflowsDisabled ? `✅ Actualizado (Workflows desactivados: ${wfCountBefore})` : "✅ Repositorio ya actualizado";
+        log.innerText = workflowsDisabled 
+            ? `✅ Actualizado (Workflows y Actions desactivados: ${wfCountBefore})` 
+            : "✅ Repositorio ya actualizado";
         btn.innerText = "Actualizado";
+        btn.disabled = true;
         return;
     }
 
@@ -350,68 +600,103 @@ async function processRepo(owner, repoName, branch) {
 
 // Sync + limpieza
 async function syncRepo(owner, repoName, branch, alreadyDisabledWf, wfCountBefore) {
+    const repo = forks.find(r => r.name === repoName);
     const log = document.getElementById(`log-${repoName}`);
     const btn = document.getElementById(`btn-${repoName}`);
 
     log.innerText = "Sincronizando...";
 
-    let res;
-    try {
-        res = await fetch(`https://api.github.com/repos/${owner}/${repoName}/merge-upstream`, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${tokenValue()}`,
-                Accept: "application/vnd.github+json"
-            },
-            body: JSON.stringify({ branch })
-        });
-    } catch (e) {
-        log.className = "log err";
-        log.innerText = "Error crítico de red al sincronizar.";
-        return;
+    let syncSuccess = false;
+    let isForcedSync = false;
+
+    if (forceSyncValue()) {
+        syncSuccess = await forceSyncRepo(owner, repoName, branch);
+        isForcedSync = true;
+    } else {
+        let res;
+        try {
+            res = await fetch(`https://api.github.com/repos/${owner}/${repoName}/merge-upstream`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${tokenValue()}`,
+                    Accept: "application/vnd.github+json"
+                },
+                body: JSON.stringify({ branch })
+            });
+        } catch (e) {
+            log.className = "log err";
+            log.innerText = "Error crítico de red al sincronizar.";
+            return;
+        }
+
+        if (res.status === 200 || res.status === 204) {
+            syncSuccess = true;
+        } else {
+            const err = await res.json().catch(() => ({}));
+
+            if (err.message && err.message.includes("workflow")) {
+                log.className = "log warn";
+                log.innerText = "Bloqueado por permisos de workflows. Aplicando Sincronización Forzada...";
+                syncSuccess = await forceSyncRepo(owner, repoName, branch);
+                isForcedSync = true;
+                if (!syncSuccess) return;
+            } else if (err.message && err.message.includes("conflict")) {
+                log.className = "log warn";
+                log.innerText = "Conflictos detectados. Reintentando con Sincronización Forzada...";
+                syncSuccess = await forceSyncRepo(owner, repoName, branch);
+                isForcedSync = true;
+                if (!syncSuccess) return;
+            } else {
+                log.className = "log err";
+                log.innerText = err.message || "Error desconocido";
+                return;
+            }
+        }
     }
 
-    if (res.status === 200 || res.status === 204) {
+    if (syncSuccess) {
+        if (repo.cmp) {
+            repo.cmp.behind = false;
+            if (repo.cmp.raw) repo.cmp.raw.behind_by = 0;
+        }
 
         let extMsg = "";
         if (!keepWorkflows()) {
-            log.innerText = "Deshabilitando workflows importados...";
+            log.innerText = "Deshabilitando workflows y Actions forzadamente...";
             const dr = await disableWorkflows(owner, repoName);
             if (dr && dr.success === false) {
                 log.className = "log err";
-                log.innerText = `Upstream merge OK, pero falló workflows: ${dr.error}`;
+                log.innerText = `Sincronizado OK, pero falló desactivación de workflows: ${dr.error}`;
                 return;
             }
             const total = (dr && dr.success ? dr.count : 0) + (wfCountBefore || 0);
-            extMsg = ` (Workflows desactivados: ${total})`;
+            extMsg = ` (Workflows y Actions desactivados: ${total})`;
         }
 
         log.className = "log ok";
-        log.innerText = `✅ Repositorio actualizado${extMsg}`;
+        log.innerText = isForcedSync 
+            ? `✅ Repositorio sincronizado (Forzado/Sobrescrito)${extMsg}`
+            : `✅ Repositorio actualizado${extMsg}`;
         btn.innerText = "Actualizado";
-        return;
+        btn.disabled = true;
     }
-
-    const err = await res.json();
-
-    if (err.message && err.message.includes("workflow")) {
-        log.className = "log err";
-        log.innerText = "Bloqueado: contiene workflows y el token no tiene permiso 'workflow'";
-        return;
-    }
-
-    if (err.message && err.message.includes("conflict")) {
-        log.className = "log err";
-        log.innerText = "Conflictos detectados";
-        return;
-    }
-
-    log.className = "log err";
-    log.innerText = err.message || "Error desconocido";
 }
 
-// Deshabilitar workflows
+// Deshabilitar workflows individualmente y a nivel de permisos de repositorio
 async function disableWorkflows(owner, repoName) {
+    // 1. Deshabilitar Actions a nivel global de repositorio (Apagado completo de Actions)
+    try {
+        await fetch(
+            `https://api.github.com/repos/${owner}/${repoName}/actions/permissions`,
+            {
+                method: "PUT",
+                headers: { Authorization: `Bearer ${tokenValue()}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled: false })
+            }
+        );
+    } catch(e) {}
+
+    // 2. Deshabilitar cada workflow activo individualmente
     let res;
     try {
         res = await fetch(
@@ -448,24 +733,91 @@ async function disableWorkflows(owner, repoName) {
     return { success: true, count: disabledCount };
 }
 
-// Sync masivo
+// Acciones masivas para deshabilitar workflows en seleccionados
+async function disableWorkflowsSelected() {
+    const statusTitle = document.getElementById('status-title');
+    const progressDiv = document.getElementById('progress');
+
+    const toProcess = forks.filter(r => r.selected !== false);
+
+    if (toProcess.length === 0) {
+        alert("No hay repositorios seleccionados.");
+        return;
+    }
+
+    let processed = 0;
+    let totalDisabledWorkflows = 0;
+    statusTitle.innerText = "Desactivación de Workflows en curso";
+    statusTitle.style.color = "#d29922";
+    const globalStart = new Date();
+
+    for (const repo of toProcess) {
+        const log = document.getElementById(`log-${repo.name}`);
+        if (log) {
+            log.className = "log warn";
+            log.innerText = "Desactivando workflows...";
+        }
+
+        progressDiv.innerHTML = `
+            Repositorios a procesar: ${toProcess.length}<br>
+            Hora de inicio: ${timeStr(globalStart)}<br>
+            Repositorios procesados: ${processed}/${toProcess.length} (Actualizado: ${timeStr(new Date())})<br>
+            Procesando ahora: <strong>${repo.full_name}</strong>
+        `;
+
+        const res = await disableWorkflows(repo.owner.login, repo.name);
+        processed++;
+
+        if (log) {
+            if (res && res.success) {
+                totalDisabledWorkflows += res.count;
+                log.className = "log ok";
+                log.innerText = `✅ Workflows desactivados (${res.count} workflows desactivados, Actions OFF)`;
+            } else {
+                log.className = "log err";
+                log.innerText = `Error al desactivar workflows: ${res ? res.error : "Error desconocido"}`;
+            }
+        }
+    }
+
+    const globalEnd = new Date();
+    const durationStr = formatDuration(globalEnd - globalStart);
+
+    statusTitle.innerText = "Desactivación de Workflows finalizada";
+    statusTitle.style.color = "#3fb950";
+    progressDiv.innerHTML = `
+        Repositorios procesados: ${processed}/${toProcess.length}<br>
+        Total workflows desactivados: <strong>${totalDisabledWorkflows}</strong><br>
+        Hora de inicio: ${timeStr(globalStart)}<br>
+        Hora de fin: ${timeStr(globalEnd)}<br>
+        Duración total: ${durationStr}
+    `;
+}
+
+// Sync masivo (sólo seleccionados)
 async function syncAll() {
     const statusTitle = document.getElementById('status-title');
     const progressDiv = document.getElementById('progress');
+    
     const toSync = forks.filter(r => {
+        if (r.selected === false) return false;
         if (!r.parent || !r.cmp || r.cmp.error) return false;
-        if (r.cmp.behind) return true; // Requiere sync via merge
-        if (!keepWorkflows()) return true; // Requiere checkeo de workflows
+        if (r.cmp.behind) return true;
+        if (forceSyncValue()) return true;
+        if (!keepWorkflows()) return true;
         return false;
     });
+
+    if (toSync.length === 0) {
+        alert("No hay repositorios seleccionados pendientes de sincronización.");
+        return;
+    }
+
     let processed = 0;
-    
-    if (toSync.length === 0) return;
-    
     statusTitle.innerText = "Sincronización en curso";
     statusTitle.style.color = "#d29922";
     const globalStart = new Date();
-    
+
     for (const repo of toSync) {
         progressDiv.innerHTML = `
             Repositorios a procesar: ${toSync.length}<br>
@@ -476,18 +828,20 @@ async function syncAll() {
         await processRepo(repo.owner.login, repo.name, repo.default_branch);
         processed++;
     }
-    
+
     const globalEnd = new Date();
     const durationStr = formatDuration(globalEnd - globalStart);
-    
+
     statusTitle.innerText = "Sincronización finalizada";
     statusTitle.style.color = "#3fb950";
     progressDiv.innerHTML = `
-        Repositorios actualizados: ${processed}/${toSync.length}<br>
+        Repositorios procesados: ${processed}/${toSync.length}<br>
         Hora de inicio: ${timeStr(globalStart)}<br>
         Hora de fin: ${timeStr(globalEnd)}<br>
         Duración total: ${durationStr}
     `;
+
+    renderForks();
 }
 </script>
 
