@@ -1,10 +1,10 @@
-<!-- ID: 20260813-0838.1 -->
+<!-- ID: 20260813-0846.1 -->
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
-    <title>GitHub Fork Sync Tool 20260813-0838.1</title>
+    <title>GitHub Fork Sync Tool 20260813-0846.1</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔄</text></svg>">
 
@@ -379,7 +379,7 @@
     <div id="repos"></div>
 
     <script>
-        /* ID: 20260813-0838.2 */
+        /* ID: 20260813-0846.2 */
 
         let forks = [];
         const SYNC_STORAGE_KEY = 'gfst_sync_history_v1';
@@ -654,6 +654,7 @@
 
             if (!repo.evaluated) {
                 statusHTML = `<span class="badge badge-muted">No evaluado</span>`;
+                disabled = true;
             } else if (!repo.parent) {
                 statusHTML = `<span class="badge badge-warn">Sin upstream</span>`;
                 disabled = true;
@@ -696,6 +697,7 @@
 
                 if (!repo.evaluated) {
                     statusHTML = `<span class="badge badge-muted">No evaluado</span>`;
+                    btnDisabled = "disabled";
                 } else if (!repo.parent) {
                     statusHTML = `<span class="badge badge-warn">Sin upstream</span>`;
                     btnDisabled = "disabled";
