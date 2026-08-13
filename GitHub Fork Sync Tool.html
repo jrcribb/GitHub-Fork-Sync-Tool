@@ -1,10 +1,10 @@
-<!-- ID: 20260812-1654.1 -->
+<!-- ID: 20260812-2005.1 -->
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
-    <title>GitHub Fork Sync Tool 20260812-1654.1</title>
+    <title>GitHub Fork Sync Tool 20260812-2005.1</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔄</text></svg>">
 
@@ -19,6 +19,7 @@
         }
 
         input[type="password"],
+        input[type="number"],
         select,
         button {
             box-sizing: border-box;
@@ -32,6 +33,12 @@
             background: #161b22;
             color: #c9d1d9;
             width: 100%;
+        }
+
+        input[type="number"] {
+            background: #161b22;
+            color: #c9d1d9;
+            text-align: center;
         }
 
         select {
@@ -263,12 +270,15 @@
             </div>
             <div class="control-item">
                 <input type="checkbox" id="forceSync">
-                <label for="forceSync" style="color: #f0883e; font-weight: 600;">⚡ Forzar sincronización (Sobrescribir
-                    conflictos)</label>
+                <label for="forceSync" style="color: #f0883e; font-weight: 600;">⚡ Forzar sincronización (Sobrescribir conflictos)</label>
             </div>
         </div>
 
         <div class="controls-group">
+            <div class="control-item">
+                <label for="batchLimit" style="font-weight: 600;">Límite por lote:</label>
+                <input type="number" id="batchLimit" min="0" value="50" style="width: 70px;" placeholder="0 = Todos" title="Número máximo de repositorios a procesar por lote (0 = sin límite)">
+            </div>
             <div class="control-item">
                 <label for="filterSelect">Mostrar:</label>
                 <select id="filterSelect" onchange="renderForks()">
@@ -291,8 +301,7 @@
         <div class="controls-group">
             <div class="control-item">
                 <input type="checkbox" id="selectAll" checked onchange="toggleSelectAll(this.checked)">
-                <label for="selectAll" id="selectAllLabel" style="font-weight: 600;">Seleccionar / Deseleccionar todos
-                    los visibles</label>
+                <label for="selectAll" id="selectAllLabel" style="font-weight: 600;">Seleccionar / Deseleccionar todos los visibles</label>
             </div>
         </div>
         <div id="countSummary" style="font-size: 13px; color: #8b949e;">
@@ -309,7 +318,7 @@
     <div id="repos"></div>
 
     <script>
-        /* ID: 20260812-1654.2 */
+        /* ID: 20260812-2005.2 */
 
         let forks = [];
 
@@ -339,6 +348,11 @@
 
         function forceSyncValue() {
             return document.getElementById('forceSync').checked;
+        }
+
+        function batchLimitValue() {
+            const val = parseInt(document.getElementById('batchLimit').value, 10);
+            return isNaN(val) || val <= 0 ? 0 : val;
         }
 
         // Obtener upstream real
@@ -399,13 +413,16 @@
             reposDiv.innerHTML = "";
             const globalStart = new Date();
 
-            for (let i = 0; i < forks.length; i++) {
+            const limit = batchLimitValue();
+            const toAnalyzeCount = limit > 0 ? Math.min(forks.length, limit) : forks.length;
+
+            for (let i = 0; i < toAnalyzeCount; i++) {
                 progressDiv.innerHTML = `
-            Cantidad total de repositorios: ${forks.length}<br>
-            Hora de inicio: ${timeStr(globalStart)}<br>
-            Repositorios analizados: ${i}/${forks.length} (Actualizado: ${timeStr(new Date())})<br>
-            Analizando ahora: <strong>${forks[i].full_name}</strong>
-        `;
+                    Repositorios encontrados: ${forks.length} (Límite por lote: ${limit > 0 ? limit : 'Sin límite'})<br>
+                    Hora de inicio: ${timeStr(globalStart)}<br>
+                    Analizando: ${i + 1}/${toAnalyzeCount} (Actualizado: ${timeStr(new Date())})<br>
+                    Analizando ahora: <strong>${forks[i].full_name}</strong>
+                `;
 
                 forks[i] = await enrichWithParent(forks[i]);
                 await sleep(350);
@@ -421,16 +438,15 @@
 
             const globalEnd = new Date();
             const durationStr = formatDuration(globalEnd - globalStart);
-            const countUpdate = forks.filter(r => r.parent && r.cmp && r.cmp.behind).length;
+            const countUpdate = forks.slice(0, toAnalyzeCount).filter(r => r.parent && r.cmp && r.cmp.behind).length;
 
             statusTitle.innerText = "Análisis finalizado";
             statusTitle.style.color = "#3fb950";
             progressDiv.innerHTML = `
-        Cantidad de repositorios requiere actualización: <strong>${countUpdate}</strong> de ${forks.length}<br>
-        Hora de inicio: ${timeStr(globalStart)}<br>
-        Hora de fin: ${timeStr(globalEnd)}<br>
-        Duración total: ${durationStr}
-    `;
+                Repositorios analizados: <strong>${toAnalyzeCount}</strong> de ${forks.length} totales<br>
+                Requieren actualización: <strong>${countUpdate}</strong><br>
+                Hora de inicio: ${timeStr(globalStart)} | Fin: ${timeStr(globalEnd)} (${durationStr})
+            `;
 
             renderForks();
         }
@@ -483,6 +499,39 @@
             }
         }
 
+        // Actualización dinámica en tiempo real de la tarjeta del repositorio
+        function updateRepoCardUI(repoName) {
+            const repo = forks.find(r => r.name === repoName);
+            if (!repo) return;
+
+            const badgeDiv = document.getElementById(`status-badge-${repo.name}`);
+            const btn = document.getElementById(`btn-${repo.name}`);
+
+            let syncStatusHTML = "";
+            let btnDisabled = false;
+            let syncBtnText = `Sync (${repo.default_branch})`;
+
+            if (!repo.parent) {
+                syncStatusHTML = `<span class="badge badge-warn">Sin upstream</span>`;
+                btnDisabled = true;
+            } else if (repo.cmp && repo.cmp.error) {
+                syncStatusHTML = `<span class="badge badge-err">Error API</span>`;
+            } else if (repo.cmp && !repo.cmp.behind) {
+                syncStatusHTML = `<span class="badge badge-ok">✅ Actualizado</span>`;
+                syncBtnText = "Actualizado";
+                btnDisabled = true;
+            } else if (repo.cmp && repo.cmp.behind) {
+                syncStatusHTML = `<span class="badge badge-warn">⚠️ Atrás por ${repo.cmp.raw.behind_by || '?'} commits</span>`;
+            }
+
+            if (badgeDiv) badgeDiv.innerHTML = syncStatusHTML;
+            if (btn) {
+                btn.innerText = syncBtnText;
+                btn.disabled = btnDisabled;
+            }
+            updateSummary();
+        }
+
         // Render UI
         function renderForks() {
             const reposDiv = document.getElementById('repos');
@@ -525,25 +574,25 @@
                 const isChecked = repo.selected !== false ? "checked" : "";
 
                 div.innerHTML = `
-            <div class="repo-header">
-                <div class="repo-title-group">
-                    <input type="checkbox" id="chk-${repo.name}" ${isChecked} onchange="toggleRepoSelect('${repo.name}', this.checked)">
-                    <span class="repo-name">${repo.full_name}</span>
-                </div>
-                <div>${syncStatusHTML}</div>
-            </div>
-            <div class="meta">
-                Branch: <strong>${repo.default_branch}</strong> | 
-                Upstream: <strong>${repo.parent ? repo.parent.full_name : "❌ none"}</strong>
-            </div>
-            <div class="repo-body" style="margin-top: 8px;">
-                <div class="log" id="log-${repo.name}"></div>
-                <button id="btn-${repo.name}" ${btnDisabled} style="min-width: 140px;"
-                    onclick="processRepo('${repo.owner.login}', '${repo.name}', '${repo.default_branch}')">
-                    ${syncBtnText}
-                </button>
-            </div>
-        `;
+                    <div class="repo-header">
+                        <div class="repo-title-group">
+                            <input type="checkbox" id="chk-${repo.name}" ${isChecked} onchange="toggleRepoSelect('${repo.name}', this.checked)">
+                            <span class="repo-name">${repo.full_name}</span>
+                        </div>
+                        <div id="status-badge-${repo.name}">${syncStatusHTML}</div>
+                    </div>
+                    <div class="meta">
+                        Branch: <strong>${repo.default_branch}</strong> | 
+                        Upstream: <strong>${repo.parent ? repo.parent.full_name : "❌ none"}</strong>
+                    </div>
+                    <div class="repo-body" style="margin-top: 8px;">
+                        <div class="log" id="log-${repo.name}"></div>
+                        <button id="btn-${repo.name}" ${btnDisabled} style="min-width: 140px;"
+                            onclick="processRepo('${repo.owner.login}', '${repo.name}', '${repo.default_branch}')">
+                            ${syncBtnText}
+                        </button>
+                    </div>
+                `;
 
                 reposDiv.appendChild(div);
             });
@@ -697,8 +746,7 @@
                 log.innerText = workflowsDisabled
                     ? `✅ Actualizado (Workflows y Actions desactivados: ${wfCountBefore})`
                     : "✅ Repositorio ya actualizado";
-                btn.innerText = "Actualizado";
-                btn.disabled = true;
+                updateRepoCardUI(repoName);
                 return;
             }
 
@@ -784,8 +832,9 @@
                 log.innerText = isForcedSync
                     ? `✅ Repositorio sincronizado (Forzado/Sobrescrito)${extMsg}`
                     : `✅ Repositorio actualizado${extMsg}`;
-                btn.innerText = "Actualizado";
-                btn.disabled = true;
+                
+                // Actualizar inmediatamente el badge y botón de la tarjeta en tiempo real
+                updateRepoCardUI(repoName);
             }
         }
 
@@ -840,16 +889,22 @@
             return { success: true, count: disabledCount };
         }
 
-        // Acciones masivas para deshabilitar workflows en seleccionados
+        // Acciones masivas para deshabilitar workflows en seleccionados con soporte de lote
         async function disableWorkflowsSelected() {
             const statusTitle = document.getElementById('status-title');
             const progressDiv = document.getElementById('progress');
 
-            const toProcess = forks.filter(r => r.selected !== false);
+            let toProcess = forks.filter(r => r.selected !== false);
+            const limit = batchLimitValue();
 
             if (toProcess.length === 0) {
                 alert("No hay repositorios seleccionados.");
                 return;
+            }
+
+            const totalSelected = toProcess.length;
+            if (limit > 0 && toProcess.length > limit) {
+                toProcess = toProcess.slice(0, limit);
             }
 
             let processed = 0;
@@ -866,11 +921,11 @@
                 }
 
                 progressDiv.innerHTML = `
-            Repositorios a procesar: ${toProcess.length}<br>
-            Hora de inicio: ${timeStr(globalStart)}<br>
-            Repositorios procesados: ${processed}/${toProcess.length} (Actualizado: ${timeStr(new Date())})<br>
-            Procesando ahora: <strong>${repo.full_name}</strong>
-        `;
+                    Procesando lote: ${toProcess.length} repositorios (Seleccionados totales: ${totalSelected})<br>
+                    Hora de inicio: ${timeStr(globalStart)}<br>
+                    Repositorios procesados: ${processed}/${toProcess.length} (Actualizado: ${timeStr(new Date())})<br>
+                    Procesando ahora: <strong>${repo.full_name}</strong>
+                `;
 
                 const res = await disableWorkflows(repo.owner.login, repo.name);
                 processed++;
@@ -893,20 +948,18 @@
             statusTitle.innerText = "Desactivación de Workflows finalizada";
             statusTitle.style.color = "#3fb950";
             progressDiv.innerHTML = `
-        Repositorios procesados: ${processed}/${toProcess.length}<br>
-        Total workflows desactivados: <strong>${totalDisabledWorkflows}</strong><br>
-        Hora de inicio: ${timeStr(globalStart)}<br>
-        Hora de fin: ${timeStr(globalEnd)}<br>
-        Duración total: ${durationStr}
-    `;
+                Repositorios procesados en lote: ${processed}/${toProcess.length} (Total seleccionados: ${totalSelected})<br>
+                Total workflows desactivados: <strong>${totalDisabledWorkflows}</strong><br>
+                Hora de inicio: ${timeStr(globalStart)} | Fin: ${timeStr(globalEnd)} (${durationStr})
+            `;
         }
 
-        // Sync masivo (sólo seleccionados)
+        // Sync masivo (sólo seleccionados con límite por lote)
         async function syncAll() {
             const statusTitle = document.getElementById('status-title');
             const progressDiv = document.getElementById('progress');
 
-            const toSync = forks.filter(r => {
+            let toSync = forks.filter(r => {
                 if (r.selected === false) return false;
                 if (!r.parent || !r.cmp || r.cmp.error) return false;
                 if (r.cmp.behind) return true;
@@ -915,9 +968,16 @@
                 return false;
             });
 
+            const limit = batchLimitValue();
+
             if (toSync.length === 0) {
                 alert("No hay repositorios seleccionados pendientes de sincronización.");
                 return;
+            }
+
+            const totalPending = toSync.length;
+            if (limit > 0 && toSync.length > limit) {
+                toSync = toSync.slice(0, limit);
             }
 
             let processed = 0;
@@ -927,11 +987,11 @@
 
             for (const repo of toSync) {
                 progressDiv.innerHTML = `
-            Repositorios a procesar: ${toSync.length}<br>
-            Hora de inicio: ${timeStr(globalStart)}<br>
-            Repositorios procesados: ${processed}/${toSync.length} (Actualizado: ${timeStr(new Date())})<br>
-            Procesando ahora: <strong>${repo.full_name}</strong>
-        `;
+                    Sincronizando lote: ${toSync.length} repositorios (Pendientes totales: ${totalPending})<br>
+                    Hora de inicio: ${timeStr(globalStart)}<br>
+                    Repositorios procesados: ${processed}/${toSync.length} (Actualizado: ${timeStr(new Date())})<br>
+                    Procesando ahora: <strong>${repo.full_name}</strong>
+                `;
                 await processRepo(repo.owner.login, repo.name, repo.default_branch);
                 processed++;
             }
@@ -942,13 +1002,9 @@
             statusTitle.innerText = "Sincronización finalizada";
             statusTitle.style.color = "#3fb950";
             progressDiv.innerHTML = `
-        Repositorios procesados: ${processed}/${toSync.length}<br>
-        Hora de inicio: ${timeStr(globalStart)}<br>
-        Hora de fin: ${timeStr(globalEnd)}<br>
-        Duración total: ${durationStr}
-    `;
-
-            renderForks();
+                Lote procesado: ${processed}/${toSync.length} (Pendientes totales iniciales: ${totalPending})<br>
+                Hora de inicio: ${timeStr(globalStart)} | Fin: ${timeStr(globalEnd)} (${durationStr})
+            `;
         }
     </script>
 
