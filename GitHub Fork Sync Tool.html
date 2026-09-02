@@ -1,10 +1,10 @@
-<!-- ID: 20260813-0846.1 -->
+<!-- ID: 20260902-1000.1 -->
 <!DOCTYPE html>
 <html lang="es">
 
 <head>
     <meta charset="UTF-8">
-    <title>GitHub Fork Sync Tool 20260813-0846.1</title>
+    <title>GitHub Fork Sync Tool 20260902-1000.1</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔄</text></svg>">
 
@@ -371,6 +371,7 @@
     <!-- Actions -->
     <div class="actions">
         <button class="btn-secondary" onclick="loadForks()">Cargar / Recargar Forks</button>
+        <button id="btnAnalyzeNext" class="btn-secondary" onclick="analyzeNextBatch()" disabled>Analizar siguiente lote</button>
         <button class="btn-secondary" onclick="disableWorkflowsSelected()">Desactivar Workflows (Seleccionados)</button>
         <button onclick="syncAll(false)">Sincronizar Seleccionados</button>
         <button class="btn-batch" onclick="syncAll(true)">⚡ Procesar por Lotes</button>
@@ -379,10 +380,18 @@
     <div id="repos"></div>
 
     <script>
-        /* ID: 20260813-0846.2 */
+        /* ID: 20260902-1000.2 */
 
         let forks = [];
+        let nextAnalyzeIndex = 0;
+        let isAnalyzing = false;
         const SYNC_STORAGE_KEY = 'gfst_sync_history_v1';
+
+        function updateAnalyzeNextButton() {
+            const btn = document.getElementById('btnAnalyzeNext');
+            if (!btn) return;
+            btn.disabled = isAnalyzing || forks.length === 0 || nextAnalyzeIndex >= forks.length;
+        }
 
         function escapeHtml(str) {
             if (!str) return '';
@@ -511,49 +520,27 @@
             return repo;
         }
 
-        /* === Cargar forks === */
-        async function loadForks() {
-            const reposDiv = document.getElementById('repos');
-            reposDiv.innerHTML = "Cargando forks...";
-
-            setLeftPanel("Análisis en curso", "#d29922", `Buscando repositorios...<br>Inicio: ${timeStr(new Date())}`);
-            setRightPanel(null);
-
-            let page = 1;
-            forks = [];
-
-            while (true) {
-                try {
-                    const res = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}`, {
-                        headers: { Authorization: `Bearer ${tokenValue()}` }
-                    });
-                    if (!res.ok) {
-                        reposDiv.innerHTML = `<span class="err">Error de autenticación o API (${res.status}).</span>`;
-                        return;
-                    }
-                    const data = await res.json();
-                    if (data.length === 0) break;
-                    forks.push(...data.filter(r => r.fork));
-                    // Marcar todos como no evaluados inicialmente
-                    data.filter(r => r.fork).forEach(r => { r.evaluated = false; });
-                    page++;
-                    await sleep(500);
-                } catch (e) {
-                    reposDiv.innerHTML = `<span class="err">Error de red crítico al listar repositorios.</span>`;
-                    return;
-                }
+        /* === Procesar lote de análisis === */
+        async function processAnalysisBatch(count) {
+            if (forks.length === 0) {
+                updateAnalyzeNextButton();
+                return;
             }
 
-            // Inicializar todos como no evaluados
-            forks.forEach(r => { r.evaluated = false; r.selected = false; });
+            const startIndex = nextAnalyzeIndex;
+            const targetCount = count > 0 ? count : (forks.length - startIndex);
+            const endIndex = Math.min(forks.length, startIndex + targetCount);
 
-            reposDiv.innerHTML = "";
+            if (startIndex >= endIndex) {
+                updateAnalyzeNextButton();
+                return;
+            }
+
             const globalStart = new Date();
-
+            const batchSize = endIndex - startIndex;
             const limit = batchLimitValue();
-            const toAnalyzeCount = limit > 0 ? Math.min(forks.length, limit) : forks.length;
 
-            for (let i = 0; i < toAnalyzeCount; i++) {
+            for (let i = startIndex; i < endIndex; i++) {
                 forks[i] = await enrichWithParent(forks[i]);
                 await sleep(350);
 
@@ -565,32 +552,124 @@
                 forks[i].evaluated = true;
                 forks[i].selected = !!(forks[i].parent && forks[i].cmp && forks[i].cmp.behind);
 
+                const currentInBatch = i - startIndex + 1;
+                const currentAccumulated = i + 1;
+                const currentPending = forks.length - currentAccumulated;
+
                 setLeftPanel(
                     "Análisis en curso",
                     "#d29922",
                     `Total forks encontrados: <strong>${forks.length}</strong><br>
-                    Límite de análisis: <strong>${limit > 0 ? limit : 'Sin límite'}</strong><br>
-                    Analizando: <strong>${i + 1} / ${toAnalyzeCount}</strong><br>
+                    Límite de lote: <strong>${limit > 0 ? limit : 'Sin límite'}</strong><br>
+                    Analizados acumulados: <strong>${currentAccumulated} / ${forks.length}</strong><br>
+                    En lote actual: <strong>${currentInBatch} / ${batchSize}</strong><br>
+                    Pendientes de análisis: <strong>${currentPending}</strong><br>
                     Hora de inicio: ${timeStr(globalStart)} | Actual: ${timeStr(new Date())}`
                 );
                 setRightPanel(forks[i]);
             }
 
+            nextAnalyzeIndex = endIndex;
+
             const globalEnd = new Date();
             const durationStr = formatDuration(globalEnd - globalStart);
-            const countUpdate = forks.slice(0, toAnalyzeCount).filter(r => r.parent && r.cmp && r.cmp.behind).length;
+            const analyzedTotal = nextAnalyzeIndex;
+            const pendingTotal = forks.length - nextAnalyzeIndex;
+            const countUpdate = forks.filter(r => r.evaluated && r.parent && r.cmp && r.cmp.behind).length;
 
             setLeftPanel(
                 "Análisis finalizado",
                 "#3fb950",
                 `Total forks: <strong>${forks.length}</strong><br>
-                Analizados: <strong>${toAnalyzeCount}</strong><br>
+                Analizados acumulados: <strong>${analyzedTotal} / ${forks.length}</strong><br>
+                Procesados en este lote: <strong>${batchSize}</strong><br>
+                Pendientes de análisis: <strong>${pendingTotal}</strong><br>
                 Requieren actualización: <strong>${countUpdate}</strong><br>
                 Inicio: ${timeStr(globalStart)} | Fin: ${timeStr(globalEnd)} | Duración: ${durationStr}`
             );
             setRightPanel(null);
 
             renderForks();
+            updateAnalyzeNextButton();
+        }
+
+        /* === Cargar forks === */
+        async function loadForks() {
+            if (isAnalyzing) return;
+            isAnalyzing = true;
+            updateAnalyzeNextButton();
+
+            const reposDiv = document.getElementById('repos');
+            reposDiv.innerHTML = "Cargando forks...";
+
+            setLeftPanel("Análisis en curso", "#d29922", `Buscando repositorios...<br>Inicio: ${timeStr(new Date())}`);
+            setRightPanel(null);
+
+            let page = 1;
+            forks = [];
+            nextAnalyzeIndex = 0;
+
+            while (true) {
+                try {
+                    const res = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}`, {
+                        headers: { Authorization: `Bearer ${tokenValue()}` }
+                    });
+                    if (!res.ok) {
+                        reposDiv.innerHTML = `<span class="err">Error de autenticación o API (${res.status}).</span>`;
+                        setLeftPanel("Error de carga", "#f85149", `Fallo al recuperar lista de repositorios (${res.status}).`);
+                        isAnalyzing = false;
+                        updateAnalyzeNextButton();
+                        return;
+                    }
+                    const data = await res.json();
+                    if (data.length === 0) break;
+                    forks.push(...data.filter(r => r.fork));
+                    // Marcar todos como no evaluados inicialmente
+                    data.filter(r => r.fork).forEach(r => { r.evaluated = false; });
+                    page++;
+                    await sleep(500);
+                } catch (e) {
+                    reposDiv.innerHTML = `<span class="err">Error de red crítico al listar repositorios.</span>`;
+                    setLeftPanel("Error de red", "#f85149", `Fallo de conexión al listar repositorios.`);
+                    isAnalyzing = false;
+                    updateAnalyzeNextButton();
+                    return;
+                }
+            }
+
+            // Inicializar todos como no evaluados
+            forks.forEach(r => { r.evaluated = false; r.selected = false; });
+
+            if (forks.length === 0) {
+                reposDiv.innerHTML = `<div style="padding:20px;text-align:center;color:#8b949e;">No se encontraron forks en la cuenta.</div>`;
+                setLeftPanel("Análisis finalizado", "#3fb950", "Total forks: <strong>0</strong><br>Analizados: <strong>0</strong><br>Pendientes: <strong>0</strong>");
+                isAnalyzing = false;
+                updateAnalyzeNextButton();
+                updateSummary();
+                return;
+            }
+
+            reposDiv.innerHTML = "";
+            const limit = batchLimitValue();
+            const count = limit > 0 ? limit : forks.length;
+
+            await processAnalysisBatch(count);
+            isAnalyzing = false;
+            updateAnalyzeNextButton();
+        }
+
+        /* === Analizar siguiente lote === */
+        async function analyzeNextBatch() {
+            if (isAnalyzing || forks.length === 0 || nextAnalyzeIndex >= forks.length) return;
+            isAnalyzing = true;
+            updateAnalyzeNextButton();
+
+            const limit = batchLimitValue();
+            const count = limit > 0 ? limit : (forks.length - nextAnalyzeIndex);
+
+            await processAnalysisBatch(count);
+            isAnalyzing = false;
+            updateAnalyzeNextButton();
         }
 
         function toggleSelectAll(checked) {

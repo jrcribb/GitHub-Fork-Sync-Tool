@@ -17,6 +17,7 @@ Cuando tienes una gran cantidad de forks en GitHub (cientos o miles), mantenerlo
 ### 🔍 Análisis de forks
 
 - Carga automáticamente **todos tus forks** mediante paginación de la API.
+- **Continuidad de análisis por lotes**: permite analizar secuencialmente todos los repositorios por grupos mediante el botón **"Analizar siguiente lote"**, acumulando el progreso y preservando los resultados previos sin reconsultar la API de repositorios.
 - Para cada fork detecta su repositorio **upstream (parent)** y compara el estado de la rama principal.
 - Informa si el fork está **actualizado**, **atrasado N commits**, o si **no tiene upstream**.
 - Muestra el **About / descripción** del repositorio para brindar contexto.
@@ -119,13 +120,14 @@ GitHub Fork Sync Tool.html
 1. Pegar el token en el campo "Github API key"
 2. Configurar parámetros de lote (Repos/lote, Pausa, Cant. lotes)
 3. Presionar "Cargar / Recargar Forks"
-   → Se analiza el primer lote de forks según el límite configurado
-4. Revisar la lista: los forks pendientes quedan seleccionados automáticamente
-5. Ajustar la selección si es necesario
-6. Elegir modo de acción:
+   → Recupera la lista completa de forks e inicia una nueva sesión analizando el primer lote
+4. Para continuar analizando los siguientes repositorios sin reiniciar la sesión ni volver a consultar la lista, presionar "Analizar siguiente lote"
+5. Revisar la lista: los forks pendientes quedan seleccionados automáticamente
+6. Ajustar la selección si es necesario
+7. Elegir modo de acción:
    - "Sincronizar Seleccionados" → procesa todos de una vez
    - "⚡ Procesar por Lotes" → procesa en etapas automáticamente
-7. Repetir desde el paso 3 para el siguiente lote de repositorios
+8. Repetir el análisis del siguiente lote y sincronización hasta completar todos los forks
 ```
 
 ---
